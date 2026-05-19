@@ -2,6 +2,10 @@
 import { get_firewall_blacklists } from "@/api/firewall_blacklist";
 import FirewallBlacklistEditModal from "@/components/firewall/FirewallBlacklistEditModal.vue";
 import FirewallBlacklistCard from "@/components/firewall/FirewallBlacklistCard.vue";
+import FirewallEmptyState from "@/components/firewall/FirewallEmptyState.vue";
+import FirewallOverviewStrip from "@/components/firewall/FirewallOverviewStrip.vue";
+import FirewallWorkbenchHeader from "@/components/firewall/FirewallWorkbenchHeader.vue";
+import SurfacePanel from "@/components/shell/SurfacePanel.vue";
 import type { FirewallBlacklistConfig } from "@landscape-router/types/api/schemas";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -19,43 +23,63 @@ onMounted(async () => {
 });
 </script>
 <template>
-  <n-flex vertical style="flex: 1; padding: 10px">
-    <n-flex align="center">
-      <n-button @click="show_create_modal = true">{{
-        t("common.create")
-      }}</n-button>
-      <n-text depth="3">
-        {{ t("firewall.card.ip_blacklist_desc") }}
-      </n-text>
-    </n-flex>
+  <div class="firewall-page">
+    <FirewallWorkbenchHeader @create="show_create_modal = true" />
+    <FirewallOverviewStrip :configs="configs" />
 
-    <n-divider />
+    <SurfacePanel class="firewall-page__body">
+      <div class="firewall-page__intro">
+        <n-text depth="3">{{ t("firewall.card.ip_blacklist_desc") }}</n-text>
+      </div>
 
-    <n-grid
-      v-if="configs.length > 0"
-      x-gap="12"
-      y-gap="10"
-      cols="1 600:2 900:3 1200:4 1600:5"
-    >
-      <n-grid-item
-        v-for="config in configs"
-        :key="config.id"
-        style="display: flex"
+      <n-grid
+        v-if="configs.length > 0"
+        x-gap="16"
+        y-gap="16"
+        cols="1 900:2 1400:3"
       >
-        <FirewallBlacklistCard :rule="config" @refresh="read_configs()" />
-      </n-grid-item>
-    </n-grid>
+        <n-grid-item
+          v-for="config in configs"
+          :key="config.id"
+          style="display: flex"
+        >
+          <FirewallBlacklistCard :rule="config" @refresh="read_configs()" />
+        </n-grid-item>
+      </n-grid>
 
-    <n-empty
-      v-else
-      :description="t('common.no_firewall_rules')"
-      style="margin-top: 100px"
-    />
+      <FirewallEmptyState
+        v-else
+        :description="t('common.no_firewall_rules')"
+      />
+    </SurfacePanel>
 
     <FirewallBlacklistEditModal
       v-model:show="show_create_modal"
       :id="null"
       @refresh="read_configs()"
     />
-  </n-flex>
+  </div>
 </template>
+
+<style scoped>
+.firewall-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.firewall-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.firewall-page__intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+</style>
