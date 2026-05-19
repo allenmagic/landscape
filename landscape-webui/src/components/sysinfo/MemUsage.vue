@@ -42,6 +42,7 @@ const getUsageColor = (percentage: number) => {
 
 <template>
   <n-card
+    class="ops-card"
     content-style="display: flex; flex-direction: column; height: 100%; padding-top: 22px;"
   >
     <!-- Header -->
@@ -167,5 +168,12 @@ const getUsageColor = (percentage: number) => {
 /* Dark mode support */
 :global(.n-config-provider--dark) .usage-bar-container {
   background-color: rgba(255, 255, 255, 0.08);
+}
+
+.ops-card {
+  border-radius: 20px;
+  border: 1px solid #dbe5ee;
+  box-shadow: 0 12px 30px rgba(16, 35, 49, 0.08);
+  background: rgba(255, 255, 255, 0.92);
 }
 </style>

@@ -90,7 +90,10 @@ const getCpuIndex = (name: string, index: number) => {
 </script>
 
 <template>
-  <n-card content-style="display: flex; flex-direction: column; height: 100%;">
+  <n-card
+    class="ops-card"
+    content-style="display: flex; flex-direction: column; height: 100%;"
+  >
     <!-- Header -->
     <template #header>
       <n-flex align="center" justify="space-between">
@@ -358,5 +361,12 @@ const getCpuIndex = (name: string, index: number) => {
 :global(.n-config-provider--dark) .cpu-index,
 :global(.n-config-provider--dark) .cpu-usage {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.ops-card {
+  border-radius: 20px;
+  border: 1px solid #dbe5ee;
+  box-shadow: 0 12px 30px rgba(16, 35, 49, 0.08);
+  background: rgba(255, 255, 255, 0.92);
 }
 </style>
