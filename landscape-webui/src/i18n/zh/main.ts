@@ -129,6 +129,12 @@ export default {
     topology_divider: "网络拓扑",
   },
   routes: {
+    "group-overview": "总览",
+    "group-network": "网络",
+    "group-traffic-policy": "流量与策略",
+    "group-name-service": "名称服务",
+    "group-infrastructure": "基础设施",
+    "group-system": "系统",
     dashboard: "系统概览",
     status: "服务状态",
     dns: "DNS 相关",

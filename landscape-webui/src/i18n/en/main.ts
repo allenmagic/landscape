@@ -131,6 +131,12 @@ export default {
     topology_divider: "Network topology",
   },
   routes: {
+    "group-overview": "Overview",
+    "group-network": "Network",
+    "group-traffic-policy": "Traffic & Policy",
+    "group-name-service": "Name Service",
+    "group-infrastructure": "Infrastructure",
+    "group-system": "System",
     dashboard: "Dashboard",
     status: "Service Status",
     dns: "DNS Settings",
