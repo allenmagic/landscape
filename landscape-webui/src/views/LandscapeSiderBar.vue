@@ -281,8 +281,11 @@ const groupedMenuOptions = computed<
 <style scoped>
 .app-sidebar {
   border-right: 1px solid rgba(183, 201, 216, 0.7);
-  background:
-    linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(244, 249, 252, 0.94));
+  background: linear-gradient(
+    180deg,
+    rgba(252, 254, 255, 0.98),
+    rgba(244, 249, 252, 0.94)
+  );
 }
 
 .app-sidebar__inner {

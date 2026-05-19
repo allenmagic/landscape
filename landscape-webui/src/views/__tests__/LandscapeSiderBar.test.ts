@@ -16,6 +16,16 @@ vi.mock("@/stores/pty", () => ({
   usePtyStore: () => ({}),
 }));
 
+vi.mock("naive-ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("naive-ui")>();
+  return {
+    ...actual,
+    NLayoutSider: {
+      template: "<aside><slot /></aside>",
+    },
+  };
+});
+
 const AppShellSidebarSectionStub = {
   props: {
     title: {
@@ -26,10 +36,6 @@ const AppShellSidebarSectionStub = {
   template: "<section>{{ title }}</section>",
 };
 
-const passthroughStub = {
-  template: "<div><slot /></div>",
-};
-
 const NMenuStub = {
   props: {
     options: {
@@ -38,9 +44,7 @@ const NMenuStub = {
     },
   },
   methods: {
-    flatten(
-      items: Array<{ label?: string; children?: any[] }>,
-    ): string[] {
+    flatten(items: Array<{ label?: string; children?: any[] }>): string[] {
       return items.flatMap((item) => [
         item.label ?? "",
         ...(item.children ? this.flatten(item.children) : []),
@@ -58,11 +62,18 @@ describe("LandscapeSiderBar", () => {
         stubs: {
           AppShellSidebarSection: AppShellSidebarSectionStub,
           CopyRight: true,
-          "n-layout-sider": passthroughStub,
-          "n-layout": passthroughStub,
-          "n-layout-header": passthroughStub,
-          "n-layout-footer": passthroughStub,
-          "n-flex": passthroughStub,
+          "n-layout": {
+            template: "<div><slot /></div>",
+          },
+          "n-layout-header": {
+            template: "<div><slot /></div>",
+          },
+          "n-layout-footer": {
+            template: "<div><slot /></div>",
+          },
+          "n-flex": {
+            template: "<div><slot /></div>",
+          },
           "n-menu": NMenuStub,
         },
       },
@@ -75,5 +86,32 @@ describe("LandscapeSiderBar", () => {
     expect(text).toContain("routes.group-name-service");
     expect(text).toContain("routes.group-infrastructure");
     expect(text).toContain("routes.group-system");
+  });
+
+  it("keeps the product shell labels visible after regrouping", () => {
+    const wrapper = mount(LandscapeSiderBar, {
+      global: {
+        stubs: {
+          AppShellSidebarSection: AppShellSidebarSectionStub,
+          CopyRight: true,
+          "n-layout": {
+            template: "<div><slot /></div>",
+          },
+          "n-layout-header": {
+            template: "<div><slot /></div>",
+          },
+          "n-layout-footer": {
+            template: "<div><slot /></div>",
+          },
+          "n-flex": {
+            template: "<div><slot /></div>",
+          },
+          "n-menu": NMenuStub,
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("routes.group-overview");
+    expect(wrapper.text()).toContain("routes.group-system");
   });
 });

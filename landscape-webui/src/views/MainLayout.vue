@@ -25,7 +25,7 @@ const contentStyle = computed(() => {
     top: "132px",
     left: "0",
     display: "flex",
-    padding: "20px 24px 24px",
+    padding: "var(--app-page-y) var(--app-page-x) 24px",
     transition: "all 0.3s ease",
   };
 

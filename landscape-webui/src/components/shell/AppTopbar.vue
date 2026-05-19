@@ -19,9 +19,13 @@ const historyStore = useHistoryRouteStore();
 const ptyStore = usePtyStore();
 const frontEndStore = useFrontEndStore();
 
-const currentTitle = computed(() => t((route.name as string) || "routes.dashboard"));
+const currentTitle = computed(() =>
+  t((route.name as string) || "routes.dashboard"),
+);
 const currentSubtitle = computed(() =>
-  route.path === "/" ? "Landscape Console" : `Landscape Console / ${route.path}`,
+  route.path === "/"
+    ? "Landscape Console"
+    : `Landscape Console / ${route.path}`,
 );
 
 function handleTagClick(path: string) {

@@ -11,7 +11,9 @@ defineProps<{
     <div class="page-header__copy">
       <p v-if="eyebrow" class="page-header__eyebrow">{{ eyebrow }}</p>
       <h2 class="page-header__title">{{ title }}</h2>
-      <p v-if="description" class="page-header__description">{{ description }}</p>
+      <p v-if="description" class="page-header__description">
+        {{ description }}
+      </p>
     </div>
     <div v-if="$slots.status" class="page-header__status">
       <slot name="status" />
@@ -67,6 +69,12 @@ defineProps<{
 @media (max-width: 900px) {
   .page-header {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-header__title {
+    font-size: 24px;
   }
 }
 </style>

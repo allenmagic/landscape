@@ -82,4 +82,18 @@ import NetFlow from "@/components/topology/NetFlow.vue";
   min-height: 560px;
   width: 100%;
 }
+
+@media (max-width: 768px) {
+  .landscape-home {
+    gap: 16px;
+  }
+
+  .landscape-home__canvas {
+    min-height: 520px;
+  }
+
+  .landscape-home__flow {
+    min-height: 420px;
+  }
+}
 </style>

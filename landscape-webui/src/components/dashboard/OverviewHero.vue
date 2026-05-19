@@ -45,8 +45,16 @@ const sysInfo = useSysInfo();
   gap: 24px;
   align-items: end;
   background:
-    radial-gradient(circle at top left, rgba(15, 154, 168, 0.16), transparent 40%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 254, 0.95));
+    radial-gradient(
+      circle at top left,
+      rgba(15, 154, 168, 0.16),
+      transparent 40%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(247, 251, 254, 0.95)
+    );
 }
 
 .overview-hero__copy {

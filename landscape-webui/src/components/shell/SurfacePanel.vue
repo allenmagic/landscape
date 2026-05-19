@@ -32,4 +32,10 @@ defineProps<{
 .surface-panel--elevated {
   background: rgba(255, 255, 255, 0.98);
 }
+
+@media (max-width: 768px) {
+  .surface-panel--padded {
+    padding: 16px;
+  }
+}
 </style>

@@ -47,10 +47,7 @@ onMounted(async () => {
         </n-grid-item>
       </n-grid>
 
-      <FirewallEmptyState
-        v-else
-        :description="t('common.no_firewall_rules')"
-      />
+      <FirewallEmptyState v-else :description="t('common.no_firewall_rules')" />
     </SurfacePanel>
 
     <FirewallBlacklistEditModal
@@ -81,5 +78,16 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .firewall-page {
+    gap: 16px;
+  }
+
+  .firewall-page__intro {
+    flex-direction: column;
+    align-items: start;
+  }
 }
 </style>

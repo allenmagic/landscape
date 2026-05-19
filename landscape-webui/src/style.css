@@ -7,6 +7,8 @@
   width: 100%;
   height: 100%;
   color-scheme: light;
+  --app-page-x: 24px;
+  --app-page-y: 20px;
 }
 
 body {
@@ -46,8 +48,27 @@ body {
   max-width: 100vw;
 }
 
+@media (max-width: 1280px) {
+  :root {
+    --app-page-x: 18px;
+  }
+}
+
 @media (max-width: 768px) {
+  :root {
+    --app-page-x: 14px;
+  }
+
   .n-drawer {
     width: 90vw !important;
+  }
+
+  .app-topbar {
+    padding: 14px;
+  }
+
+  .overview-hero,
+  .firewall-page__body {
+    padding: 16px;
   }
 }

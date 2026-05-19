@@ -7,8 +7,8 @@ const props = defineProps<{
   configs: FirewallBlacklistConfig[];
 }>();
 
-const enabledCount = computed(() =>
-  props.configs.filter((item) => item.enable).length,
+const enabledCount = computed(
+  () => props.configs.filter((item) => item.enable).length,
 );
 
 const sourceCount = computed(() =>
@@ -21,7 +21,9 @@ const sourceCount = computed(() =>
     <span class="sr-only">firewall-overview</span>
     <div class="firewall-overview-stat">
       <span class="firewall-overview-stat__label">Rules</span>
-      <strong class="firewall-overview-stat__value">{{ configs.length }}</strong>
+      <strong class="firewall-overview-stat__value">{{
+        configs.length
+      }}</strong>
     </div>
     <div class="firewall-overview-stat">
       <span class="firewall-overview-stat__label">Enabled</span>

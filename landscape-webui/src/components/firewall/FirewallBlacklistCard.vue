@@ -29,7 +29,11 @@ const title_name = computed(() =>
 </script>
 <template>
   <n-flex>
-    <n-card size="small" class="firewall-rule-card" style="flex: 1; min-width: 280px">
+    <n-card
+      size="small"
+      class="firewall-rule-card"
+      style="flex: 1; min-width: 280px"
+    >
       <template #header>
         <StatusTitle :enable="rule.enable" :remark="title_name" />
       </template>
