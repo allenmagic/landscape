@@ -3,6 +3,7 @@ import { darkTheme, enUS, zhCN, dateZhCN, dateEnUS } from "naive-ui";
 import { computed, onMounted } from "vue";
 import { usePreferenceStore } from "@/stores/preference";
 import Env from "@/components/Env.vue";
+import { appThemeOverrides } from "@/theme/naiveTheme";
 
 const prefStore = usePreferenceStore();
 
@@ -29,7 +30,7 @@ const currentTheme = computed(() => {
     :date-locale="currentDateLocale"
     :theme="currentTheme"
     style="display: flex; flex: 1"
-    :theme-overrides="{ common: { fontWeightStrong: '600' } }"
+    :theme-overrides="appThemeOverrides"
   >
     <n-message-provider>
       <n-notification-provider>
@@ -41,12 +42,3 @@ const currentTheme = computed(() => {
     </n-message-provider>
   </n-config-provider>
 </template>
-
-<style>
-/* .main-body {
-  align-items: center;
-  width: 100%;
-  display: flex;
-  justify-items: center;
-} */
-</style>

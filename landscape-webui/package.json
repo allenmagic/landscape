@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@landscape-router/types": "workspace:*",
@@ -33,6 +34,7 @@
     "@scalar/api-reference": "^1.46.0",
     "@types/netmask": "^2.0.5",
     "@types/node": "^25.3.3",
+    "@vue/test-utils": "^2.4.6",
     "@vicons/antd": "^0.13.0",
     "@vicons/carbon": "^0.13.0",
     "@vicons/fa": "^0.13.0",
@@ -43,6 +45,7 @@
     "@vicons/tabler": "^0.13.0",
     "@vitejs/plugin-basic-ssl": "^2.0.0",
     "@vitejs/plugin-vue": "^6.0.3",
+    "jsdom": "^26.1.0",
     "naive-ui": "^2.41.0",
     "prettier": "^3.8.1",
     "seemly": "^0.3.8",
@@ -51,6 +54,7 @@
     "unplugin-vue-components": "^31.0.0",
     "vfonts": "^0.1.0",
     "vite": "^7.3.0",
+    "vitest": "^2.1.8",
     "vue-tsc": "^3.2.1"
   }
 }
