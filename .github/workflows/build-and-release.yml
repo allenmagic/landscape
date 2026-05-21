@@ -122,13 +122,6 @@ jobs:
             gateway: true
 
           - host: ubuntu-24.04
-            architecture: s390x
-            target: s390x-unknown-linux-gnu
-            toolchain: stable
-            bindgen: true
-            gateway: true
-
-          - host: ubuntu-24.04
             architecture: loongarch64
             target: loongarch64-unknown-linux-gnu
             toolchain: stable
@@ -245,25 +238,44 @@ jobs:
           - host: ubuntu-24.04
             architecture: x86_64
             target: x86_64-unknown-linux-musl
+            zig_target: x86_64-linux-musl
+            rust_env_target: X86_64_UNKNOWN_LINUX_MUSL
             toolchain: stable
-            bindgen: false
             gateway: false
 
-    container: 
-      image: thisseanzhang/landscape:build_base_musl
+          - host: ubuntu-24.04
+            architecture: aarch64
+            target: aarch64-unknown-linux-musl
+            zig_target: aarch64-linux-musl
+            rust_env_target: AARCH64_UNKNOWN_LINUX_MUSL
+            toolchain: stable
+            gateway: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang curl g++ gcc llvm make pkg-config libclang-dev zlib1g-dev zstd wget
+
+      - name: Setup rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.settings.toolchain }}
+          targets: ${{ matrix.settings.target }}
+          components: rustfmt
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.14.1
+
       - name: Setup sccache
         run: |
-          apk add --no-cache curl gzip tar wget
-          sccache_arch=${{ matrix.settings.architecture }}
-          if [ "${sccache_arch}" = "x86_64" ] || [ "${sccache_arch}" = "aarch64" ]; then
-            wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-${sccache_arch}-unknown-linux-musl.tar.gz | tar -xzf - -C /usr/local/bin/ --strip-components=1
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          fi
+          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-x86_64-unknown-linux-musl.tar.gz | sudo tar -xzf - -C /usr/local/bin/ --strip-components=1
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Setup cache
         uses: actions/cache@v5
@@ -273,18 +285,44 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.settings.target }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-${{ matrix.settings.target }}-
 
+      - name: Prepare cross toolchain wrappers
+        run: |
+          sudo install -d /usr/local/bin
+          printf '%s\n' '#!/usr/bin/env bash' 'exec zig cc -target ${{ matrix.settings.zig_target }} "$@"' \
+            | sudo tee /usr/local/bin/zigcc-${{ matrix.settings.architecture }}-musl >/dev/null
+          printf '%s\n' '#!/usr/bin/env bash' 'exec zig c++ -target ${{ matrix.settings.zig_target }} "$@"' \
+            | sudo tee /usr/local/bin/zigcxx-${{ matrix.settings.architecture }}-musl >/dev/null
+          sudo chmod +x /usr/local/bin/zigcc-${{ matrix.settings.architecture }}-musl /usr/local/bin/zigcxx-${{ matrix.settings.architecture }}-musl
+
       - name: Build Rust binaries
         run: |
+          WRAPPER_CC=/usr/local/bin/zigcc-${{ matrix.settings.architecture }}-musl
+          WRAPPER_CXX=/usr/local/bin/zigcxx-${{ matrix.settings.architecture }}-musl
+          export PKG_CONFIG_ALLOW_CROSS=1
+          export CARGO_TARGET_${{ matrix.settings.rust_env_target }}_LINKER="$WRAPPER_CC"
+          case "${{ matrix.settings.target }}" in
+            x86_64-unknown-linux-musl)
+              export CC_x86_64_unknown_linux_musl="$WRAPPER_CC"
+              export CXX_x86_64_unknown_linux_musl="$WRAPPER_CXX"
+              export AR_x86_64_unknown_linux_musl=llvm-ar
+              export RANLIB_x86_64_unknown_linux_musl=llvm-ranlib
+              ;;
+            aarch64-unknown-linux-musl)
+              export CC_aarch64_unknown_linux_musl="$WRAPPER_CC"
+              export CXX_aarch64_unknown_linux_musl="$WRAPPER_CXX"
+              export AR_aarch64_unknown_linux_musl=llvm-ar
+              export RANLIB_aarch64_unknown_linux_musl=llvm-ranlib
+              ;;
+          esac
           mkdir -p output
           if [ "${{ matrix.settings.gateway }}" = "true" ]; then
-            cargo build --release --features duckdb-bundled
+            cargo build --release --target ${{ matrix.settings.target }} --features "duckdb-bundled static"
           else
-            cargo build --release --no-default-features --features duckdb-bundled
+            cargo build --release --target ${{ matrix.settings.target }} --no-default-features --features "duckdb-bundled static"
           fi
-          cp target/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}-musl
-          # redirect_pkg_handler
-          cargo build --package landscape-ebpf --bin redirect_pkg_handler --release
-          cp target/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}-musl
+          cp target/${{ matrix.settings.target }}/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}-musl
+          cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }} --features static
+          cp target/${{ matrix.settings.target }}/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}-musl
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
