@@ -13,24 +13,35 @@ env:
 jobs:
   linux-musl-build:
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/build'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04-arm     # ← 关键：使用 GitHub 原生 arm64 runner
+
     container:
-      image: ghcr.io/allenmagic/landscape:build_base_musl_arm64
+      image: alpine:3.23           # ← 在 Alpine 3.23 容器内编译
 
     steps:
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            build-base cmake clang clang-dev clang-static \
+            llvm llvm-dev llvm-static \
+            linux-headers \
+            elfutils-dev elfutils-static \
+            zlib-dev zlib-static \
+            zstd-dev zstd-static \
+            pkgconfig make curl wget bash git perl tar gzip xz \
+            rust cargo \
+            musl-dev \
+            openssl-dev openssl-libs-static \
+            libbpf-dev bpftool \
+            nodejs
+
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: aarch64-unknown-linux-musl
-          components: rustfmt
-
       - name: Setup sccache
         run: |
-          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-aarch64-unknown-linux-musl.tar.gz | tar -xzf - -C /usr/local/bin/ --strip-components=1
+          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-aarch64-unknown-linux-musl.tar.gz \
+            | tar -xzf - -C /usr/local/bin/ --strip-components=1
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Setup cache
@@ -38,16 +49,43 @@ jobs:
         with:
           path: |
             ~/.cache/sccache
-          key: ${{ runner.os }}-aarch64-unknown-linux-musl-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-aarch64-unknown-linux-musl-
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-aarch64-musl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-aarch64-musl-
 
       - name: Build Rust binaries
+        env:
+          OPENSSL_STATIC: "1"
+          OPENSSL_DIR: /usr
+          PKG_CONFIG_ALL_STATIC: "1"
+          RUSTFLAGS: "-C target-feature=+crt-static"
+          CARGO_PROFILE_RELEASE_DEBUG: "false"
+          CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           mkdir -p output
-          cargo build --release --target aarch64-unknown-linux-musl --no-default-features --features "duckdb-bundled static"
-          cp target/aarch64-unknown-linux-musl/release/landscape-webserver output/landscape-webserver-aarch64-musl
-          cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target aarch64-unknown-linux-musl --features static
-          cp target/aarch64-unknown-linux-musl/release/redirect_pkg_handler output/redirect_pkg_handler-aarch64-musl
+
+          # 主程序
+          cargo build --release \
+            --no-default-features \
+            --features "duckdb-bundled static"
+          cp target/release/landscape-webserver \
+             output/landscape-webserver-aarch64-musl
+
+          # eBPF 子程序
+          cargo build --release \
+            --package landscape-ebpf \
+            --bin redirect_pkg_handler \
+            --features static
+          cp target/release/redirect_pkg_handler \
+             output/redirect_pkg_handler-aarch64-musl
+
+      - name: Verify binaries
+        run: |
+          file output/landscape-webserver-aarch64-musl
+          file output/redirect_pkg_handler-aarch64-musl
+          ldd output/landscape-webserver-aarch64-musl || echo "static binary (expected)"
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
