@@ -30,7 +30,7 @@ clap = { workspace = true }
 
 axum = { workspace = true }
 axum-extra = { workspace = true, features = ["typed-header"] }
-axum-server = { workspace = true, features = ["tls-rustls"] }
+axum-server = { workspace = true, features = ["tls-rustls-no-provider"] }
 headers = { workspace = true }
 
 homedir = { workspace = true }
