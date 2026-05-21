@@ -312,6 +312,8 @@ jobs:
               export CXX_aarch64_unknown_linux_musl="$WRAPPER_CXX"
               export AR_aarch64_unknown_linux_musl=llvm-ar
               export RANLIB_aarch64_unknown_linux_musl=llvm-ranlib
+              export AWS_LC_SYS_NO_ASM=1
+              export AWS_LC_SYS_CMAKE_BUILDER=1
               ;;
           esac
           mkdir -p output
