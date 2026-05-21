@@ -58,7 +58,11 @@ clap = { version = "4.5.53", default-features = false, features = [
 tokio = { version = "1.49.0" }
 tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.17", features = ["codec", "net"] }
-tokio-rustls = "0.26.4"
+tokio-rustls = { version = "0.26.4", default-features = false, features = [
+    "ring",
+    "logging",
+    "tls12",
+] }
 async-trait = "0.1.89"
 async-std = { version = "1", features = ["attributes", "tokio1"] }
 futures = "0.3.11"
