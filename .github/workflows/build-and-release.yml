@@ -25,7 +25,7 @@ jobs:
             build-base cmake clang clang-dev clang-static \
             llvm llvm-dev llvm-static \
             linux-headers \
-            elfutils-dev elfutils-static \
+            elfutils-dev libelf-static \
             zlib-dev zlib-static \
             zstd-dev zstd-static \
             pkgconfig make curl wget bash git perl tar gzip xz \
