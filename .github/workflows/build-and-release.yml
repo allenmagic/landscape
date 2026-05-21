@@ -13,32 +13,35 @@ env:
 jobs:
   linux-musl-build:
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/build'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm     # ← 关键：使用 GitHub 原生 arm64 runner
+
+    container:
+      image: alpine:3.23           # ← 在 Alpine 3.23 容器内编译
 
     steps:
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            build-base cmake clang clang-dev clang-static \
+            llvm llvm-dev llvm-static \
+            linux-headers \
+            elfutils-dev elfutils-static \
+            zlib-dev zlib-static \
+            zstd-dev zstd-static \
+            pkgconfig make curl wget bash git perl tar gzip xz \
+            rust cargo \
+            musl-dev \
+            openssl-dev openssl-libs-static \
+            libbpf-dev bpftool \
+            nodejs
+
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake clang curl g++ gcc llvm make pkg-config libclang-dev zlib1g-dev zstd wget
-
-      - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: aarch64-unknown-linux-musl
-          components: rustfmt
-
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.14.1
-
       - name: Setup sccache
         run: |
-          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-x86_64-unknown-linux-musl.tar.gz | sudo tar -xzf - -C /usr/local/bin/ --strip-components=1
+          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-aarch64-unknown-linux-musl.tar.gz \
+            | tar -xzf - -C /usr/local/bin/ --strip-components=1
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Setup cache
@@ -46,33 +49,43 @@ jobs:
         with:
           path: |
             ~/.cache/sccache
-          key: ${{ runner.os }}-aarch64-unknown-linux-musl-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-aarch64-unknown-linux-musl-
-
-      - name: Prepare cross toolchain wrappers
-        run: |
-          sudo install -d /usr/local/bin
-          printf '%s\n' '#!/usr/bin/env bash' 'exec zig cc -target aarch64-linux-musl "$@"' \
-            | sudo tee /usr/local/bin/zigcc-aarch64-musl >/dev/null
-          printf '%s\n' '#!/usr/bin/env bash' 'exec zig c++ -target aarch64-linux-musl "$@"' \
-            | sudo tee /usr/local/bin/zigcxx-aarch64-musl >/dev/null
-          sudo chmod +x /usr/local/bin/zigcc-aarch64-musl /usr/local/bin/zigcxx-aarch64-musl
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-aarch64-musl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-aarch64-musl-
 
       - name: Build Rust binaries
+        env:
+          OPENSSL_STATIC: "1"
+          OPENSSL_DIR: /usr
+          PKG_CONFIG_ALL_STATIC: "1"
+          RUSTFLAGS: "-C target-feature=+crt-static"
+          CARGO_PROFILE_RELEASE_DEBUG: "false"
+          CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
-          WRAPPER_CC=/usr/local/bin/zigcc-aarch64-musl
-          WRAPPER_CXX=/usr/local/bin/zigcxx-aarch64-musl
-          export PKG_CONFIG_ALLOW_CROSS=1
-          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$WRAPPER_CC"
-          export CC_aarch64_unknown_linux_musl="$WRAPPER_CC"
-          export CXX_aarch64_unknown_linux_musl="$WRAPPER_CXX"
-          export AR_aarch64_unknown_linux_musl=llvm-ar
-          export RANLIB_aarch64_unknown_linux_musl=llvm-ranlib
           mkdir -p output
-          cargo build --release --target aarch64-unknown-linux-musl --no-default-features --features "duckdb-bundled static"
-          cp target/aarch64-unknown-linux-musl/release/landscape-webserver output/landscape-webserver-aarch64-musl
-          cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target aarch64-unknown-linux-musl --features static
-          cp target/aarch64-unknown-linux-musl/release/redirect_pkg_handler output/redirect_pkg_handler-aarch64-musl
+
+          # 主程序
+          cargo build --release \
+            --no-default-features \
+            --features "duckdb-bundled static"
+          cp target/release/landscape-webserver \
+             output/landscape-webserver-aarch64-musl
+
+          # eBPF 子程序
+          cargo build --release \
+            --package landscape-ebpf \
+            --bin redirect_pkg_handler \
+            --features static
+          cp target/release/redirect_pkg_handler \
+             output/redirect_pkg_handler-aarch64-musl
+
+      - name: Verify binaries
+        run: |
+          file output/landscape-webserver-aarch64-musl
+          file output/redirect_pkg_handler-aarch64-musl
+          ldd output/landscape-webserver-aarch64-musl || echo "static binary (expected)"
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
