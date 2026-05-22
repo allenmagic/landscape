@@ -1,16 +1,11 @@
 name: build and release
 
 on:
-  push:
-    tags:
-      - '*'
-    branches:
-      - 'build'
+  workflow_dispatch:
 
 env:
   sccache_version: 'v0.12.0'
-  zlib_version: '1.3.1'
-  elfutils_version: '0.192'
+  RELEASE_NAME: 'landscape-webserver-linux-gnu'
 
 jobs:
   linux-build:
@@ -22,16 +17,10 @@ jobs:
           - host: ubuntu-22.04
             architecture: x86_64
             target: x86_64-unknown-linux-gnu
-            toolchain: stable
-            bindgen: false
-            gateway: true
 
           - host: ubuntu-22.04-arm
             architecture: aarch64
             target: aarch64-unknown-linux-gnu
-            toolchain: stable
-            bindgen: false
-            gateway: true
 
     steps:
       - name: Checkout code
@@ -45,13 +34,14 @@ jobs:
       - name: Setup sccache
         run: |
           sccache_arch=${{ matrix.settings.architecture }}
-          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-${sccache_arch}-unknown-linux-musl.tar.gz | sudo tar -xzf - -C /usr/local/bin/ --strip-components=1
+          wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-${sccache_arch}-unknown-linux-musl.tar.gz \
+            | sudo tar -xzf - -C /usr/local/bin/ --strip-components=1
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Setup rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.settings.toolchain }}
+          toolchain: stable
           targets: ${{ matrix.settings.target }}
           components: rustfmt
 
@@ -65,18 +55,11 @@ jobs:
 
       - name: Build binaries
         run: |
-            if [ "${{ matrix.settings.bindgen }}" = "true" ]; then
-              cargo install --force --locked bindgen-cli
-            fi
-            if [ "${{ matrix.settings.gateway }}" = "true" ]; then
-              cargo build --release --target ${{ matrix.settings.target }} --features duckdb-bundled
-            else
-              cargo build --release --target ${{ matrix.settings.target }} --no-default-features --features duckdb-bundled
-            fi
-            cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }}
-            mkdir -p output
-            cp target/${{ matrix.settings.target }}/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}
-            cp target/${{ matrix.settings.target }}/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}
+          cargo build --release --target ${{ matrix.settings.target }} --features duckdb-bundled
+          cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }}
+          mkdir -p output
+          cp target/${{ matrix.settings.target }}/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}
+          cp target/${{ matrix.settings.target }}/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}
 
       - name: Export OpenAPI spec
         if: matrix.settings.architecture == 'aarch64'
@@ -88,203 +71,6 @@ jobs:
         with:
           name: openapi-spec
           path: landscape-types/openapi.json
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: landscape-webserver-${{ matrix.settings.target }}
-          path: output/*
-
-  linux-build-extra:
-    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/build'
-    runs-on: ${{ matrix.settings.host }}
-    strategy:
-      fail-fast: false
-      matrix:
-        settings:
-          # - host: ubuntu-22.04-arm
-          #   architecture: armv7l
-          #   target: armv7-unknown-linux-gnueabihf
-          #   toolchain: nightly
-          #   bindgen: true
-
-          # - host: ubuntu-22.04
-          #   architecture: ppc64le
-          #   target: powerpc64le-unknown-linux-gnu
-          #   toolchain: stable
-          #   bindgen: true
-
-          - host: ubuntu-24.04
-            architecture: riscv64
-            target: riscv64gc-unknown-linux-gnu
-            toolchain: stable
-            bindgen: false
-            gateway: true
-
-          - host: ubuntu-24.04
-            architecture: s390x
-            target: s390x-unknown-linux-gnu
-            toolchain: stable
-            bindgen: true
-            gateway: true
-
-          - host: ubuntu-24.04
-            architecture: loongarch64
-            target: loongarch64-unknown-linux-gnu
-            toolchain: stable
-            bindgen: true
-            gateway: false
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake clang curl gcc llvm make pkg-config libelf-dev libclang-dev zlib1g-dev zstd
-
-      - name: Cache cross-libraries
-        id: cache-cross-libs
-        uses: actions/cache@v5
-        with:
-          path: /usr/${{ matrix.settings.architecture }}-linux-gnu
-          key: cross-libs-${{ matrix.settings.target }}-${{ env.zlib_version }}-${{ env.elfutils_version }}
-
-      - name: Setup cross-tools
-        if: steps.cache-cross-libs.outputs.cache-hit != 'true'
-        run: |
-          ARCH=${{ matrix.settings.architecture }}
-          case "$ARCH" in
-            armv7l) TOOLCHAIN_TRIPLET="arm-linux-gnueabihf" ;;
-            ppc64le) TOOLCHAIN_TRIPLET="powerpc64le-linux-gnu" ;;
-            *) TOOLCHAIN_TRIPLET="${ARCH}-linux-gnu" ;;
-          esac
-
-          sudo apt-get update
-          sudo apt-get install -y g++-13-${TOOLCHAIN_TRIPLET} gcc-13-${TOOLCHAIN_TRIPLET}
-          sudo update-alternatives \
-            --install /usr/bin/${TOOLCHAIN_TRIPLET}-gcc ${TOOLCHAIN_TRIPLET}-gcc /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-13 100 \
-            --slave /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-ar ${TOOLCHAIN_TRIPLET}-gcc-ar /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-ar-13 \
-            --slave /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-nm ${TOOLCHAIN_TRIPLET}-gcc-nm /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-nm-13 \
-            --slave /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-ranlib ${TOOLCHAIN_TRIPLET}-gcc-ranlib /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-ranlib-13 \
-            --slave /usr/bin/${TOOLCHAIN_TRIPLET}-gcov ${TOOLCHAIN_TRIPLET}-gcov /usr/bin/${TOOLCHAIN_TRIPLET}-gcov-13
-          sudo update-alternatives --install /usr/bin/${TOOLCHAIN_TRIPLET}-g++ ${TOOLCHAIN_TRIPLET}-g++ /usr/bin/${TOOLCHAIN_TRIPLET}-g++-13 100
-          sudo update-alternatives --install /usr/bin/${TOOLCHAIN_TRIPLET}-cpp ${TOOLCHAIN_TRIPLET}-cpp /usr/bin/${TOOLCHAIN_TRIPLET}-cpp-13 100
-
-          cd /tmp
-          wget -q https://github.com/madler/zlib/releases/download/v${zlib_version}/zlib-${zlib_version}.tar.gz
-          wget -q https://sourceware.org/elfutils/ftp/${elfutils_version}/elfutils-${elfutils_version}.tar.bz2
-          tar xf zlib-${zlib_version}.tar.gz
-          tar xf elfutils-${elfutils_version}.tar.bz2
-
-          export CC=${TOOLCHAIN_TRIPLET}-gcc
-          export CXX=${TOOLCHAIN_TRIPLET}-g++
-          export PREFIX=/usr/${TOOLCHAIN_TRIPLET}
-
-          # Build Zlib
-          cd /tmp/zlib-${zlib_version}
-          CHOST=${TOOLCHAIN_TRIPLET} ./configure --prefix=${PREFIX}
-          make -j$(nproc)
-          sudo make install
-
-          # Build Elfutils
-          cd /tmp/elfutils-${elfutils_version}
-          ./configure --host=${TOOLCHAIN_TRIPLET} --prefix=${PREFIX} --with-zlib=${PREFIX} --disable-libdebuginfod --disable-debuginfod \
-            CFLAGS="-I${PREFIX}/include" LDFLAGS="-L${PREFIX}/lib -Wl,-rpath,${PREFIX}/lib" LIBS="-lz"
-          make -j$(nproc)
-          sudo make install
-
-      - name: Install cross-compilers (if cache hit)
-        if: steps.cache-cross-libs.outputs.cache-hit == 'true'
-        run: |
-          ARCH=${{ matrix.settings.architecture }}
-          TOOLCHAIN_TRIPLET="${ARCH}-linux-gnu"
-          [ "$ARCH" = "armv7l" ] && TOOLCHAIN_TRIPLET="arm-linux-gnueabihf"
-
-          sudo apt-get update
-          sudo apt-get install -y g++-13-${TOOLCHAIN_TRIPLET} gcc-13-${TOOLCHAIN_TRIPLET}
-          sudo update-alternatives --install /usr/bin/${TOOLCHAIN_TRIPLET}-gcc ${TOOLCHAIN_TRIPLET}-gcc /usr/bin/${TOOLCHAIN_TRIPLET}-gcc-13 100
-          sudo update-alternatives --install /usr/bin/${TOOLCHAIN_TRIPLET}-g++ ${TOOLCHAIN_TRIPLET}-g++ /usr/bin/${TOOLCHAIN_TRIPLET}-g++-13 100
-
-      - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ matrix.settings.toolchain }}
-          targets: ${{ matrix.settings.target }}
-          components: rustfmt
-
-      - name: Build binaries
-        run: |
-            if [ "${{ matrix.settings.bindgen }}" = "true" ]; then
-              cargo install --force --locked bindgen-cli
-            fi
-            if [ "${{ matrix.settings.gateway }}" = "true" ]; then
-              cargo build --release --target ${{ matrix.settings.target }} --features duckdb-bundled
-            else
-              cargo build --release --target ${{ matrix.settings.target }} --no-default-features --features duckdb-bundled
-            fi
-            cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }}
-            mkdir -p output
-            cp target/${{ matrix.settings.target }}/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}
-            cp target/${{ matrix.settings.target }}/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: landscape-webserver-${{ matrix.settings.target }}
-          path: output/*
-
-  linux-musl-build:
-    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/build'
-    runs-on: ${{ matrix.settings.host }}
-    strategy:
-      fail-fast: false
-      matrix:
-        settings:
-          - host: ubuntu-24.04
-            architecture: x86_64
-            target: x86_64-unknown-linux-musl
-            toolchain: stable
-            bindgen: false
-            gateway: false
-
-    container: 
-      image: thisseanzhang/landscape:build_base_musl
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup sccache
-        run: |
-          apk add --no-cache curl gzip tar wget
-          sccache_arch=${{ matrix.settings.architecture }}
-          if [ "${sccache_arch}" = "x86_64" ] || [ "${sccache_arch}" = "aarch64" ]; then
-            wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-${sccache_arch}-unknown-linux-musl.tar.gz | tar -xzf - -C /usr/local/bin/ --strip-components=1
-            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          fi
-
-      - name: Setup cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cache/sccache
-          key: ${{ runner.os }}-${{ matrix.settings.target }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-${{ matrix.settings.target }}-
-
-      - name: Build Rust binaries
-        run: |
-          mkdir -p output
-          if [ "${{ matrix.settings.gateway }}" = "true" ]; then
-            cargo build --release --features duckdb-bundled
-          else
-            cargo build --release --no-default-features --features duckdb-bundled
-          fi
-          cp target/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}-musl
-          # redirect_pkg_handler
-          cargo build --package landscape-ebpf --bin redirect_pkg_handler --release
-          cp target/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}-musl
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
@@ -329,7 +115,6 @@ jobs:
           pnpm --filter landscape-webui build
           cd landscape-webui
           mkdir static
-          # Merge dist and public/scalar into static
           cp -r dist/* static/
           if [ -d public/scalar ]; then
             mkdir -p static/scalar
@@ -347,36 +132,41 @@ jobs:
           path: output/static.zip
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: [linux-build, linux-build-extra, linux-musl-build, build-front]
+    needs: [linux-build, build-front]
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Download binary
+      - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: landscape-*
           path: output
           merge-multiple: true
 
+      - name: Cleanup non-release files
+        run: |
+          rm -f output/openapi.json
+          ls -lh output/
+
       - name: Generate SHASUM
         run: |
           cd output
           sha256sum * > SHASUM256sum.txt
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+      - name: Upload all assets to release
+        uses: svenstaro/upload-release-action@v2
         with:
-          name: Release ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          body: |
-            Auto-generated release from GitHub Actions.
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: output/*
+          file_glob: true
+          tag: ${{ env.RELEASE_NAME }}
+          overwrite: true
           prerelease: true
-          generate_release_notes: true
-          files: |
-            output/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            Auto-generated build from GitHub Actions.
+
+            Supported targets:
+            - `x86_64-unknown-linux-gnu` (Debian / Ubuntu x86_64)
+            - `aarch64-unknown-linux-gnu` (Armbian / Debian / Ubuntu ARM64)
