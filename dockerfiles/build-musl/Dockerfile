@@ -1,15 +1,15 @@
-FROM rust:alpine3.22
-RUN rustup component add rustfmt
+FROM arm64v8/alpine:3.22
 
-# RUN printf "https://mirrors.tuna.tsinghua.edu.cn/alpine/latest-stable/main\nhttps://mirrors.tuna.tsinghua.edu.cn/alpine/latest-stable/community\n" \
-#     | tee /etc/apk/repositories
+RUN apk add --no-cache \
+    # Rust 工具链 (1.87.0-r1)
+    rust cargo \
+    # C/C++ 编译（duckdb-bundled）
+    build-base cmake \
+    # eBPF 程序编译 + libbpf 依赖
+    clang llvm elfutils-dev zlib-dev \
+    # 其他
+    linux-headers pkgconf \
+    # CI 格式检查
+    rustfmt
 
-RUN apk update && apk add --no-cache \
-    # 基础构建工具
-    clang \
-    gcc \
-    build-base \
-    make \
-    pkgconf \
-    elfutils-dev \
-    linux-headers
+WORKDIR /landscape
