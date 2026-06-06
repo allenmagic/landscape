@@ -18,7 +18,6 @@ linker = "powerpc64le-linux-gnu-gcc"
 
 [target.aarch64-unknown-linux-musl]
 linker = "gcc"
-rustflags = ["-C", "target-feature=-crt-static"]
 
 [target.armv7-unknown-linux-musleabihf]
 linker = "gcc"
