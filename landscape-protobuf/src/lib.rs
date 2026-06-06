@@ -369,7 +369,7 @@ pub fn parse_adguard_rules(contents: &[u8]) -> Vec<GeoSiteFileConfig> {
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_env = "musl")))]
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
@@ -377,6 +377,7 @@ static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 mod tests {
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+    #[cfg(not(target_env = "musl"))]
     use jemalloc_ctl::{epoch, stats};
     use landscape_common::dns::rule::DomainMatchType;
 
@@ -385,6 +386,7 @@ mod tests {
         read_geo_ips_from_bytes_txt, read_geo_sites,
     };
 
+    #[cfg(not(target_env = "musl"))]
     fn test_memory_usage() {
         epoch::advance().unwrap();
 
@@ -394,6 +396,7 @@ mod tests {
         println!("Allocated memory: {} kbytes", allocated / 1024);
         println!("Active memory: {} kbytes", active / 1024);
     }
+    #[cfg(not(target_env = "musl"))]
     #[tokio::test]
     async fn read_raw() {
         test_memory_usage();
@@ -410,6 +413,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_env = "musl"))]
     #[tokio::test]
     async fn test() {
         test_memory_usage();
@@ -425,6 +429,7 @@ mod tests {
         test_memory_usage();
     }
 
+    #[cfg(not(target_env = "musl"))]
     #[tokio::test]
     async fn test_read() {
         test_memory_usage();
