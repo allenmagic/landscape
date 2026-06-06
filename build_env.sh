@@ -16,6 +16,8 @@ declare -A TARGETS=(
     ["x86_64"]="x86_64-unknown-linux-gnu"
     ["aarch64"]="aarch64-unknown-linux-gnu"
     ["armv7"]="armv7-unknown-linux-gnueabihf"
+    ["x86_64-musl"]="x86_64-unknown-linux-musl"
+    ["aarch64-musl"]="aarch64-unknown-linux-musl"
 )
 
 TARGET_ORDER=("x86_64" "aarch64" "armv7")
