@@ -22,6 +22,10 @@ jobs:
             architecture: aarch64
             target: aarch64-unknown-linux-gnu
 
+          - host: ubuntu-22.04-arm
+            architecture: aarch64-musl
+            target: aarch64-unknown-linux-musl
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -55,8 +59,16 @@ jobs:
 
       - name: Build binaries
         run: |
-          cargo build --release --target ${{ matrix.settings.target }} --features duckdb-bundled
-          cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }}
+          if [[ "${{ matrix.settings.target }}" == *-musl ]]; then
+            docker build -t landscape-build-musl ./dockerfiles/build-musl
+            docker run --rm \
+              -v $PWD:/landscape \
+              landscape-build-musl \
+              sh -c "cargo build --release --target ${{ matrix.settings.target }} --features duckdb-bundled && cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }}"
+          else
+            cargo build --release --target ${{ matrix.settings.target }} --features duckdb-bundled
+            cargo build --release --package landscape-ebpf --bin redirect_pkg_handler --target ${{ matrix.settings.target }}
+          fi
           mkdir -p output
           cp target/${{ matrix.settings.target }}/release/landscape-webserver output/landscape-webserver-${{ matrix.settings.architecture }}
           cp target/${{ matrix.settings.target }}/release/redirect_pkg_handler output/redirect_pkg_handler-${{ matrix.settings.architecture }}
@@ -170,3 +182,4 @@ jobs:
             Supported targets:
             - `x86_64-unknown-linux-gnu` (Debian / Ubuntu x86_64)
             - `aarch64-unknown-linux-gnu` (Armbian / Debian / Ubuntu ARM64)
+            - `aarch64-unknown-linux-musl` (Alpine / musl-based ARM64)
