@@ -115,7 +115,7 @@ fn normalize_domain_text(domain: &str) -> String {
     domain.trim_end_matches('.').to_ascii_lowercase()
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_env = "musl")))]
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
@@ -123,6 +123,7 @@ static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 mod tests {
     use std::{path::PathBuf, time::Instant};
 
+    #[cfg(not(target_env = "musl"))]
     use jemalloc_ctl::{epoch, stats};
 
     use landscape_common::{
@@ -147,6 +148,7 @@ mod tests {
         assert!(!matcher.is_match("abaidu.com"));
     }
 
+    #[cfg(not(target_env = "musl"))]
     fn test_memory_usage() {
         epoch::advance().unwrap();
 
@@ -157,6 +159,7 @@ mod tests {
         println!("Active memory: {} kbytes", active / 1024);
     }
 
+    #[cfg(not(target_env = "musl"))]
     #[test]
     pub fn mem_useage() {
         for _ in 0..3 {
