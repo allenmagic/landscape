@@ -18,6 +18,9 @@ linker = "powerpc64le-linux-gnu-gcc"
 
 [target.aarch64-unknown-linux-musl]
 linker = "gcc"
+rustflags = [
+    "-C", "target-feature=+lse",
+]
 
 [target.armv7-unknown-linux-musleabihf]
 linker = "gcc"
@@ -48,3 +51,4 @@ release = "build --release --features duckdb-bundled"
 
 [env]
 TS_RS_EXPORT_DIR = { value = "./landscape-types/src", relative = true }
+LIBBPF_SYS_EXTRA_CFLAGS = "-march=armv8.1-a"
