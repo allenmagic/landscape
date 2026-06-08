@@ -35,7 +35,14 @@ if [[ "$TARGET_ARCH" == *-musl ]]; then
     fi
 
     echo "构建 Docker 镜像: $IMAGE_TAG"
-    docker build $PLATFORM_FLAG -t "$IMAGE_TAG" "$DOCKERFILE_DIR"
+    LSE_CFLAGS=""
+    if [[ "$TARGET_ARCH" == aarch64-* ]]; then
+        LSE_CFLAGS="--build-arg LSE_CFLAGS=-march=armv8.1-a"
+    fi
+    docker build $PLATFORM_FLAG \
+        --build-arg RUST_TARGET="$TARGET_ARCH" \
+        $LSE_CFLAGS \
+        -t "$IMAGE_TAG" "$DOCKERFILE_DIR"
 
     echo "在 Docker 容器中编译..."
     docker run --rm \

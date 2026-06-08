@@ -22,6 +22,10 @@ jobs:
             architecture: aarch64
             target: aarch64-unknown-linux-gnu
 
+          - host: ubuntu-22.04
+            architecture: x86_64-musl
+            target: x86_64-unknown-linux-musl
+
           - host: ubuntu-22.04-arm
             architecture: aarch64-musl
             target: aarch64-unknown-linux-musl
@@ -61,7 +65,14 @@ jobs:
       - name: Build binaries
         run: |
           if [[ "${{ matrix.settings.target }}" == *-musl ]]; then
-            docker build -t landscape-build-musl ./dockerfiles/build-musl
+            LSE_CFLAGS=""
+            if [[ "${{ matrix.settings.target }}" == aarch64-* ]]; then
+              LSE_CFLAGS="--build-arg LSE_CFLAGS=-march=armv8.1-a"
+            fi
+            docker build \
+              --build-arg RUST_TARGET=${{ matrix.settings.target }} \
+              $LSE_CFLAGS \
+              -t landscape-build-musl ./dockerfiles/build-musl
             docker run --rm \
               -v $PWD:/landscape \
               landscape-build-musl \
@@ -89,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: landscape-webserver-${{ matrix.settings.target }}
-          path: output/*
+          path: output
 
   build-front:
     needs: linux-build
@@ -142,7 +153,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: landscape-frontend-none-all
-          path: output/static.zip
+          path: output
 
   publish:
     runs-on: ubuntu-latest
@@ -155,7 +166,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: landscape-*
-          path: output
+          path: .
           merge-multiple: true
 
       - name: Cleanup non-release files
@@ -182,5 +193,6 @@ jobs:
 
             Supported targets:
             - `x86_64-unknown-linux-gnu` (Debian / Ubuntu x86_64)
+            - `x86_64-unknown-linux-musl` (Alpine / musl-based x86_64)
             - `aarch64-unknown-linux-gnu` (Armbian / Debian / Ubuntu ARM64)
             - `aarch64-unknown-linux-musl` (Alpine / musl-based ARM64)

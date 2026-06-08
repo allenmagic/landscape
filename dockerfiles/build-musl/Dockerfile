@@ -1,4 +1,6 @@
-FROM arm64v8/alpine:3.22
+FROM alpine:3.22
+
+ARG RUST_TARGET=x86_64-unknown-linux-musl
 
 RUN apk add --no-cache \
     # C/C++ 编译（duckdb-bundled）
@@ -15,19 +17,21 @@ RUN apk add --no-cache \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain stable && \
     . "$HOME/.cargo/env" && \
+    rustup target add ${RUST_TARGET} && \
     rustup component add rustfmt
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # RUSTC wrapper: Alpine 的 libelf.a 静态链接需要 libzstd
 # 使用 RUSTC 包装器而非 build.rustflags，因为后者不作用于 build script
-RUN printf '#!/bin/sh\nexec /root/.rustup/toolchains/stable-aarch64-unknown-linux-musl/bin/rustc "$@" -C link-arg=-l:libzstd.a\n' \
+RUN printf '#!/bin/sh\n'"exec /root/.rustup/toolchains/stable-${RUST_TARGET}/bin/rustc \"\$@\" -C link-arg=-l:libzstd.a\n" \
     > /usr/local/bin/rustc-wrapper && \
     chmod +x /usr/local/bin/rustc-wrapper
 ENV RUSTC=/usr/local/bin/rustc-wrapper
 
-# libbpf C 代码在 aarch64 上使用 __atomic_fetch_add 等，若编译为 armv8-a（无 LSE）
-# GCC 会生成对 __aarch64_ldadd4_sync 的调用，需要显式启用 LSE 指令避免链接 libatomic
-ENV LIBBPF_SYS_EXTRA_CFLAGS="-march=armv8.1-a"
+# aarch64 only: libbpf C 代码在 armv8-a（无 LSE）下会生成对 __aarch64_ldadd4_sync
+# 的调用，需显式启用 LSE 指令避免链接 libatomic。x86_64 不需要此标志
+ARG LSE_CFLAGS=""
+ENV LIBBPF_SYS_EXTRA_CFLAGS="${LSE_CFLAGS}"
 
 WORKDIR /landscape
