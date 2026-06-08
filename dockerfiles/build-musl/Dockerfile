@@ -16,7 +16,8 @@ RUN rustup target add ${RUST_TARGET} && \
 
 # RUSTC wrapper: Alpine 的 libelf.a 静态链接需要 libzstd
 # 使用 RUSTC 包装器而非 build.rustflags，因为后者不作用于 build script
-RUN printf '#!/bin/sh\n'"rustup run stable-${RUST_TARGET} rustc \"\$@\" -C link-arg=-l:libzstd.a\n" \
+# 容器始终是目标架构原生运行（Docker platform 自动匹配），stable 即目标 toolchain
+RUN printf '#!/bin/sh\nexec rustup run stable rustc "$@" -C link-arg=-l:libzstd.a\n' \
     > /usr/local/bin/rustc-wrapper && \
     chmod +x /usr/local/bin/rustc-wrapper
 ENV RUSTC=/usr/local/bin/rustc-wrapper
