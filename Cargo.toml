@@ -2,6 +2,13 @@
 version = "0.19.2"
 edition = "2021"
 
+[profile.release]
+# 优化体积：对静态链接的 musl 目标尤其重要
+opt-level = "s"       # 体积优先（改 3→s，性能差异通常 <5%）
+lto = "fat"           # 跨 crate 死代码消除
+strip = "symbols"     # 去除调试符号
+codegen-units = 1     # 单 codegen unit，最大化优化效果
+
 
 [workspace]
 members = [
