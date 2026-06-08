@@ -26,4 +26,8 @@ RUN printf '#!/bin/sh\nexec /root/.rustup/toolchains/stable-aarch64-unknown-linu
     chmod +x /usr/local/bin/rustc-wrapper
 ENV RUSTC=/usr/local/bin/rustc-wrapper
 
+# libbpf C 代码在 aarch64 上使用 __atomic_fetch_add 等，若编译为 armv8-a（无 LSE）
+# GCC 会生成对 __aarch64_ldadd4_sync 的调用，需要显式启用 LSE 指令避免链接 libatomic
+ENV LIBBPF_SYS_EXTRA_CFLAGS="-march=armv8.1-a"
+
 WORKDIR /landscape
