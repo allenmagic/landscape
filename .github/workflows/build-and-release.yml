@@ -166,7 +166,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: landscape-*
-          path: .
+          path: output
           merge-multiple: true
 
       - name: Cleanup non-release files
