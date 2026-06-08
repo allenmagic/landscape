@@ -1,4 +1,4 @@
-FROM alpine:3.22
+FROM alpine:3.23.4
 
 ARG RUST_TARGET=x86_64-unknown-linux-musl
 
