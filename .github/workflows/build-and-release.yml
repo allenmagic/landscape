@@ -38,6 +38,7 @@ jobs:
       - name: Setup sccache
         run: |
           sccache_arch=${{ matrix.settings.architecture }}
+          sccache_arch=${sccache_arch%-musl}
           wget -qO- https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-${sccache_arch}-unknown-linux-musl.tar.gz \
             | sudo tar -xzf - -C /usr/local/bin/ --strip-components=1
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
