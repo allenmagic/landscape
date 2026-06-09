@@ -1,0 +1,276 @@
+name: build and release by zig
+
+on:
+  workflow_dispatch:
+
+env:
+  RELEASE_NAME: 'landscape-webserver-linux'
+  # glibc 下限：Ubuntu 22.04 = 2.35，Debian 12 = 2.36，取交集 2.35
+  GLIBC_VERSION: '2.35'
+  ZIG_VERSION: '0.13.0'
+
+jobs:
+  # =========================================================
+  # 单 host (x86_64) 上交叉编译全部 4 个目标
+  # =========================================================
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-unknown-linux-gnu
+            zig_target: x86_64-unknown-linux-gnu.2.35
+            rustflags: ""
+            cflags: ""
+
+          - arch: aarch64
+            target: aarch64-unknown-linux-gnu
+            zig_target: aarch64-unknown-linux-gnu.2.35
+            rustflags: "-C target-cpu=cortex-a55"
+            cflags: "-mcpu=cortex-a55"
+
+          - arch: x86_64-musl
+            target: x86_64-unknown-linux-musl
+            zig_target: x86_64-unknown-linux-musl
+            rustflags: ""
+            cflags: ""
+
+          - arch: aarch64-musl
+            target: aarch64-unknown-linux-musl
+            zig_target: aarch64-unknown-linux-musl
+            rustflags: "-C target-cpu=cortex-a55"
+            cflags: "-mcpu=cortex-a55"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # ---------- 系统依赖：eBPF 工具链 + 通用构建工具 ----------
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake make \
+            clang llvm libclang-dev \
+            libelf-dev zlib1g-dev zstd \
+            curl wget ca-certificates binutils-aarch64-linux-gnu
+          clang --version
+
+      # ---------- Rust 工具链 ----------
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+
+      # ---------- Zig（cargo-zigbuild 的后端）----------
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      # ---------- cargo-zigbuild ----------
+      - name: Install cargo-zigbuild
+        run: |
+          cargo install --locked cargo-zigbuild
+          cargo zigbuild --version
+
+      # ---------- 缓存 ----------
+      - name: Cache cargo registry & target
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-zigbuild-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-zigbuild-${{ matrix.target }}-
+
+      # ---------- 编译主二进制 (landscape-webserver) ----------
+      - name: Build landscape-webserver
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          # aarch64: 启用 LSE atomics（cflags 为 -mcpu=cortex-a55）
+          # x86_64: cflags 为空，无影响
+          CFLAGS_aarch64_unknown_linux_gnu: ${{ matrix.cflags }}
+          CXXFLAGS_aarch64_unknown_linux_gnu: ${{ matrix.cflags }}
+          CFLAGS_aarch64_unknown_linux_musl: ${{ matrix.cflags }}
+          CXXFLAGS_aarch64_unknown_linux_musl: ${{ matrix.cflags }}
+          # libbpf-sys 使用独立的 extra cflags 变量，不在 cc crate 的 CFLAGS 覆盖范围
+          LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
+        run: |
+          cargo zigbuild --release \
+            --target ${{ matrix.zig_target }} \
+            --features duckdb-bundled \
+            --bin landscape-webserver
+
+      # ---------- 编译 eBPF 用户态 loader (redirect_pkg_handler) ----------
+      # eBPF 对象文件 (.bpf.o) 由 build.rs 调用 clang -target bpf 生成，与 host 架构无关
+      - name: Build redirect_pkg_handler (eBPF userspace)
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          CFLAGS_aarch64_unknown_linux_gnu: ${{ matrix.cflags }}
+          CFLAGS_aarch64_unknown_linux_musl: ${{ matrix.cflags }}
+          LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
+        run: |
+          cargo zigbuild --release \
+            --package landscape-ebpf \
+            --bin redirect_pkg_handler \
+            --target ${{ matrix.zig_target }}
+
+      # ---------- 收集产物 ----------
+      - name: Collect binaries
+        run: |
+          mkdir -p output
+          # zigbuild 输出仍按 rust target 目录（不带 .glibc 后缀）
+          cp target/${{ matrix.target }}/release/landscape-webserver \
+             output/landscape-webserver-${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/redirect_pkg_handler \
+             output/redirect_pkg_handler-${{ matrix.arch }}
+
+          # 简单 strip（musl 静态二进制收益尤其明显）
+          if command -v llvm-strip >/dev/null 2>&1; then
+            llvm-strip output/landscape-webserver-${{ matrix.arch }} || true
+            llvm-strip output/redirect_pkg_handler-${{ matrix.arch }} || true
+          fi
+
+          ls -lh output/
+          file output/* || true
+
+      # ---------- 验证 A55 指令是否启用（仅 aarch64，调试用）----------
+      - name: Verify LSE/A55 instructions (aarch64 only)
+        if: startsWith(matrix.arch, 'aarch64')
+        run: |
+          echo "==== checking LSE atomics (casal/ldadd/swpal) ===="
+          aarch64-linux-gnu-objdump -d output/landscape-webserver-${{ matrix.arch }} \
+            | grep -Eo "casal|ldadd|swpal|ldset|ldclr" | sort -u || echo "(none found)"
+
+      # ---------- 导出 OpenAPI（只做一次，在 host 原生 x86_64 上）----------
+      - name: Export OpenAPI spec
+        if: matrix.arch == 'x86_64'
+        run: cargo test -p landscape-webserver export_openapi_json -- --nocapture
+
+      - name: Upload OpenAPI spec
+        if: matrix.arch == 'x86_64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi-spec
+          path: landscape-types/openapi.json
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: landscape-webserver-${{ matrix.target }}
+          path: output
+
+  # =========================================================
+  # 前端构建
+  # =========================================================
+  build-front:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download OpenAPI spec
+        uses: actions/download-artifact@v8
+        with:
+          name: openapi-spec
+          path: landscape-types
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Build frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: |
+          mkdir -p output
+          pnpm install --frozen-lockfile
+          pnpm --filter @landscape-router/types generate
+
+          # Scalar API Reference 资源
+          mkdir -p landscape-webui/public/scalar
+          cp landscape-webui/node_modules/@scalar/api-reference/dist/browser/standalone.js landscape-webui/public/scalar/
+          cp landscape-webui/node_modules/@scalar/api-reference/dist/style.css            landscape-webui/public/scalar/
+
+          pnpm --filter landscape-webui build
+
+          cd landscape-webui
+          mkdir -p static
+          cp -r dist/* static/
+          if [ -d public/scalar ]; then
+            mkdir -p static/scalar
+            cp public/scalar/*.js  static/scalar/ 2>/dev/null || true
+            cp public/scalar/*.css static/scalar/ 2>/dev/null || true
+          fi
+          zip -r ../output/static.zip static
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: landscape-frontend-none-all
+          path: output
+
+  # =========================================================
+  # 汇总并发布到 Release
+  # =========================================================
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build, build-front]
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: landscape-*
+          path: output
+          merge-multiple: true
+
+      - name: Cleanup & list
+        run: |
+          rm -f output/openapi.json
+          ls -lh output/
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd output
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload to GitHub Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: output/*
+          file_glob: true
+          tag: ${{ env.RELEASE_NAME }}
+          overwrite: true
+          prerelease: true
+          body: |
+            Auto-generated build from GitHub Actions (cargo-zigbuild).
+
+            **Toolchain**
+            - Built with `cargo-zigbuild` + Zig ${{ env.ZIG_VERSION }}
+            - glibc baseline: **${{ env.GLIBC_VERSION }}** (compatible with Debian 12 / Ubuntu 22.04+)
+            - aarch64 binaries are tuned for **Cortex-A55** (`-C target-cpu=cortex-a55`, LSE + dotprod enabled)
+
+            **Supported targets**
+            - `x86_64-unknown-linux-gnu`   — Debian 12 / Ubuntu 22.04+ (x86_64)
+            - `x86_64-unknown-linux-musl`  — Alpine / musl-based (x86_64, fully static)
+            - `aarch64-unknown-linux-gnu`  — Debian 12 / Ubuntu 22.04+ (ARM64, RK3566/RK3568 optimized)
+            - `aarch64-unknown-linux-musl` — Alpine / musl-based (ARM64, fully static, RK3566/RK3568 optimized)
