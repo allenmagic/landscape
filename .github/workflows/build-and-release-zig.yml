@@ -87,9 +87,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-zigbuild-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-zigbuild-v2-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-zigbuild-${{ matrix.target }}-
+            ${{ runner.os }}-zigbuild-v2-${{ matrix.target }}-
 
       # ---------- 编译主二进制 (landscape-webserver) ----------
       - name: Build landscape-webserver
@@ -104,6 +104,13 @@ jobs:
           CXX_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-g++' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
+          echo "=== debug: matrix.arch=${{ matrix.arch }} target=${{ matrix.target }} ==="
+          echo "CC_x86_64-unknown-linux-gnu='${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}'"
+          echo "LIBBPF_SYS_EXTRA_CFLAGS from case match:"
+          case "${{ matrix.arch }}" in
+            aarch64*) echo "  -> would export cortex-a55";;
+            *)        echo "  -> (not aarch64, skip)";;
+          esac
           # libbpf-sys: aarch64 需要 -mcpu=cortex-a55 避免生成 libatomic 调用
           case "${{ matrix.arch }}" in
             aarch64*) export LIBBPF_SYS_EXTRA_CFLAGS="-mcpu=cortex-a55" ;;
@@ -124,6 +131,7 @@ jobs:
           CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
+          echo "=== debug redirect: matrix.arch=${{ matrix.arch }} ==="
           case "${{ matrix.arch }}" in
             aarch64*) export LIBBPF_SYS_EXTRA_CFLAGS="-mcpu=cortex-a55" ;;
           esac
