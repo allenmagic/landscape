@@ -103,8 +103,12 @@ jobs:
           CXXFLAGS_aarch64_unknown_linux_musl: ${{ matrix.cflags }}
           # libbpf-sys 使用独立的 extra cflags 变量，不在 cc crate 的 CFLAGS 覆盖范围
           LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
-          # aws-lc-sys 含 ARM .S 汇编文件，zig cc 集成汇编器不支持 GNU 语法
-          # aarch64 全部用 GNU 交叉编译器处理 C/ASM（C++ 如 duckdb 仍走 zig cc）
+          # aws-lc-sys 含 ARM .S 汇编，zig cc 集成汇编器不支持；libbpf-sys
+          # 也因 zig cc sysroot 隔离找不到系统 libelf.h。全部改用系统 GCC
+          # 编译 C/ASM（C++ 如 duckdb 仍走 zig cc 以正确处理 libc++）
+          CC_x86_64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
+          CXX_x86_64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'x86_64') && 'g++' || '' }}
+          CC_x86_64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
           CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
           CXX_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-g++' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
@@ -122,7 +126,9 @@ jobs:
           CFLAGS_aarch64_unknown_linux_gnu: ${{ matrix.cflags }}
           CFLAGS_aarch64_unknown_linux_musl: ${{ matrix.cflags }}
           LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
-          # aws-lc-sys 含 ARM .S 汇编文件，zig cc 集成汇编器不支持 GNU 语法
+          # C/ASM 编译全部用系统 GCC（zig cc 找不到系统头文件 + 不支持 GNU 汇编）
+          CC_x86_64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
+          CC_x86_64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
           CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
