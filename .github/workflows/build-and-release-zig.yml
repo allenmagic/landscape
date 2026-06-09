@@ -95,8 +95,6 @@ jobs:
       - name: Build landscape-webserver
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
-          # libbpf-sys cflags（仅影响 libbpf 的 Makefile 构建，不污染 CMake）
-          LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
           # C/ASM 编译全部用系统 GCC（zig cc 找不到系统头文件 + 不支持 GNU 汇编）
           # C++（duckdb-bundled）在 musl 目标上仍走 zig cc 以正确处理 libc++
           CC_x86_64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
@@ -106,6 +104,11 @@ jobs:
           CXX_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-g++' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
+          # libbpf-sys 需要 -mcpu=cortex-a55 避免 aarch64 下生成 libatomic 调用
+          # 仅在 cflags 非空时 export，避免空字符串被 build.rs 误认为已设置
+          if [ -n "${{ matrix.cflags }}" ]; then
+            export LIBBPF_SYS_EXTRA_CFLAGS="${{ matrix.cflags }}"
+          fi
           cargo zigbuild --release \
             --target ${{ matrix.zig_target }} \
             --features duckdb-bundled \
@@ -116,13 +119,15 @@ jobs:
       - name: Build redirect_pkg_handler (eBPF userspace)
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
-          LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
           # C/ASM 编译全部用系统 GCC（zig cc 找不到系统头文件 + 不支持 GNU 汇编）
           CC_x86_64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
           CC_x86_64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'x86_64') && 'gcc' || '' }}
           CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
+          if [ -n "${{ matrix.cflags }}" ]; then
+            export LIBBPF_SYS_EXTRA_CFLAGS="${{ matrix.cflags }}"
+          fi
           cargo zigbuild --release \
             --package landscape-ebpf \
             --bin redirect_pkg_handler \
