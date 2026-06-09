@@ -76,9 +76,7 @@ jobs:
 
       # ---------- cargo-zigbuild ----------
       - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild
-          cargo zigbuild --version
+        run: cargo install --locked cargo-zigbuild
 
       # ---------- 缓存 ----------
       - name: Cache cargo registry & target
