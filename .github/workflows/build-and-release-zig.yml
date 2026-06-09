@@ -104,11 +104,10 @@ jobs:
           CXX_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-g++' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
-          # libbpf-sys 需要 -mcpu=cortex-a55 避免 aarch64 下生成 libatomic 调用
-          # 仅在 cflags 非空时 export，避免空字符串被 build.rs 误认为已设置
-          if [ -n "${{ matrix.cflags }}" ]; then
-            export LIBBPF_SYS_EXTRA_CFLAGS="${{ matrix.cflags }}"
-          fi
+          # libbpf-sys: aarch64 需要 -mcpu=cortex-a55 避免生成 libatomic 调用
+          case "${{ matrix.arch }}" in
+            aarch64*) export LIBBPF_SYS_EXTRA_CFLAGS="-mcpu=cortex-a55" ;;
+          esac
           cargo zigbuild --release \
             --target ${{ matrix.zig_target }} \
             --features duckdb-bundled \
@@ -125,9 +124,9 @@ jobs:
           CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
           CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
-          if [ -n "${{ matrix.cflags }}" ]; then
-            export LIBBPF_SYS_EXTRA_CFLAGS="${{ matrix.cflags }}"
-          fi
+          case "${{ matrix.arch }}" in
+            aarch64*) export LIBBPF_SYS_EXTRA_CFLAGS="-mcpu=cortex-a55" ;;
+          esac
           cargo zigbuild --release \
             --package landscape-ebpf \
             --bin redirect_pkg_handler \
