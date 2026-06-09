@@ -104,8 +104,10 @@ jobs:
           # libbpf-sys 使用独立的 extra cflags 变量，不在 cc crate 的 CFLAGS 覆盖范围
           LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
           # aws-lc-sys 含 ARM .S 汇编文件，zig cc 集成汇编器不支持 GNU 语法
-          CC_aarch64-unknown-linux-gnu: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
-          CXX_aarch64-unknown-linux-gnu: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-g++' || '' }}
+          # aarch64 全部用 GNU 交叉编译器处理 C/ASM（C++ 如 duckdb 仍走 zig cc）
+          CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
+          CXX_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-g++' || '' }}
+          CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
           cargo zigbuild --release \
             --target ${{ matrix.zig_target }} \
@@ -121,7 +123,8 @@ jobs:
           CFLAGS_aarch64_unknown_linux_musl: ${{ matrix.cflags }}
           LIBBPF_SYS_EXTRA_CFLAGS: ${{ matrix.cflags }}
           # aws-lc-sys 含 ARM .S 汇编文件，zig cc 集成汇编器不支持 GNU 语法
-          CC_aarch64-unknown-linux-gnu: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
+          CC_aarch64-unknown-linux-gnu: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
+          CC_aarch64-unknown-linux-musl: ${{ startsWith(matrix.arch, 'aarch64') && 'aarch64-linux-gnu-gcc' || '' }}
         run: |
           cargo zigbuild --release \
             --package landscape-ebpf \
